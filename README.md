@@ -18,6 +18,7 @@ docker compose down -v && docker compose up -d db
 ## Schema
 
 - `documents`: mỗi file đã ingest
-- `chunks`: đoạn văn bản + `embedding vector(1024)` (HNSW cosine)
+- `parents`: chunk cha (~3000 ký tự), phần được trả về cho LLM
+- `chunks`: chunk con (~600 ký tự) + `embedding vector(1024)` (HNSW cosine), có `parent_id` trỏ về chunk cha
 
 > Nếu đổi embedding model, sửa `vector(1024)` trong `init.sql` và `EMBEDDING_DIM` trong `.env` cho khớp.

@@ -30,8 +30,11 @@ class EmbeddingConfig:
 
 @dataclass
 class ChunkingConfig:
-    size: int
-    overlap: int
+    strategy: str
+    parent_size: int
+    parent_overlap: int
+    child_size: int
+    child_overlap: int
 
 
 @dataclass
