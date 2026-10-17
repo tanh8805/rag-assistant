@@ -7,7 +7,8 @@ from src.ingestion import Document
 @dataclass
 class ChildChunk:
     content: str
-    parent_index: int 
+    parent_index: int
+    embedding: list[float] = field(default_factory=list)
 
 
 @dataclass
