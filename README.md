@@ -34,8 +34,7 @@ docker compose down -v && docker compose up -d db
 
 ## Schema
 
-- `documents`: mỗi nguồn đã ingest (có `content_hash` để bỏ qua file không đổi)
-- `chunks`: đoạn văn bản + `embedding vector(1024)` (HNSW cosine) + `content_tsv` (full-text)
-- `query_logs`: câu hỏi, chunk đã dùng, câu trả lời, độ trễ — phục vụ eval
+- `documents`: mỗi file đã ingest
+- `chunks`: đoạn văn bản + `embedding vector(1024)` (HNSW cosine)
 
 > Nếu đổi embedding model, sửa `vector(1024)` trong `init.sql` và `EMBEDDING_DIM` trong `.env` cho khớp.
