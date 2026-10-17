@@ -2,23 +2,6 @@
 
 Hệ thống hỏi đáp dựa trên tài liệu (Retrieval-Augmented Generation): ingest → chunk → embed → retrieve → rerank → generate.
 
-## Cấu trúc
-
-```
-rag-assistant/
-├── data/              # tài liệu nguồn để ingest
-├── eval/              # bộ câu hỏi và script đánh giá
-└── src/
-    ├── api/           # FastAPI endpoints
-    ├── ingestion/     # đọc PDF/DOCX/HTML/...
-    ├── chunking/      # chia nhỏ văn bản
-    ├── embeddings/    # tạo vector embedding
-    ├── retrieval/     # vector + keyword (hybrid) search
-    ├── rerank/        # sắp xếp lại kết quả
-    ├── generation/    # gọi LLM sinh câu trả lời
-    └── db/            # kết nối DB, init.sql (schema)
-```
-
 ## Chạy thử
 
 ```bash

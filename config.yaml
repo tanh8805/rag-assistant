@@ -1,0 +1,25 @@
+database:
+  host: localhost
+  port: 5432
+  user: rag
+  name: rag
+
+embedding:
+  model: AITeamVN/Vietnamese_Embedding
+  dim: 1024         
+
+chunking:
+  size: 800
+  overlap: 100
+
+retrieval:
+  top_k: 20
+
+rerank:
+  model: AITeamVN/Vietnamese_Reranker
+  top_n: 5
+
+llm:
+  provider: gemini   
+  gemini_model: gemini-2.5-flash
+  openai_model: gpt-4o-mini

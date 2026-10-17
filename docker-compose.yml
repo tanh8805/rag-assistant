@@ -2,18 +2,17 @@ services:
   db:
     image: pgvector/pgvector:pg16
     container_name: rag-db
-    env_file: .env
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_USER: rag   # khớp database.user trong config.yaml
+      POSTGRES_DB: rag     # khớp database.name trong config.yaml
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./src/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U rag -d rag"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -23,9 +22,9 @@ services:
     container_name: rag-api
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      DB_HOST: db
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "8000:8000"
     volumes:
       - ./data:/app/data
       - ./eval:/app/eval
