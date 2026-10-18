@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS documents (
     id         SERIAL PRIMARY KEY,
     source     TEXT NOT NULL UNIQUE,
     title      TEXT,
+    content_hash TEXT,
     metadata   JSONB NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -24,6 +25,7 @@ CREATE TABLE IF NOT EXISTS chunks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_parents_document ON parents (document_id);
+CREATE INDEX IF NOT EXISTS idx_documents_hash ON documents (content_hash);
 CREATE INDEX IF NOT EXISTS idx_chunks_document ON chunks (document_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_parent ON chunks (parent_id);
 CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON chunks USING hnsw (embedding vector_cosine_ops);

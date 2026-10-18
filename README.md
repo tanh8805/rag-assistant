@@ -21,12 +21,12 @@ docker compose down -v && docker compose up -d db
 Mỗi chunking strategy một database, schema riêng:
 
 **`rag_parent_child`** (`src/db/init.sql`)
-- `documents`: mỗi file đã ingest
+- `documents`: mỗi file đã ingest, có `content_hash` (SHA-256 nội dung file) để bỏ qua file đã có
 - `parents`: chunk cha (~3000 ký tự), phần được trả về cho LLM
 - `chunks`: chunk con (~600 ký tự) + `embedding vector(1024)` (HNSW cosine), có `parent_id` trỏ về chunk cha
 
 **`rag_flat`** (`src/db/init_1.sql`)
-- `documents`: mỗi file đã ingest
+- `documents`: mỗi file đã ingest, có `content_hash` (SHA-256 nội dung file) để bỏ qua file đã có
 - `chunks`: chunk thường (1000 ký tự, overlap 100) + `embedding vector(1024)`, không có parent
 
 > Nếu đổi embedding model, sửa `vector(1024)` trong `init.sql`, `init_1.sql` cho khớp.

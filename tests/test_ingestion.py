@@ -2,6 +2,7 @@ import pymupdf
 import pytest
 
 from src.ingestion import get_loader, load_file
+from src.ingestion.hashing import hash_file
 from src.ingestion.text_loader import TextLoader
 
 
@@ -50,3 +51,12 @@ def test_loader_chosen_by_extension_case_insensitive(tmp_path):
 def test_unsupported_extension_raises():
     with pytest.raises(ValueError):
         get_loader("file.docx")
+
+
+def test_hash_file_depends_on_content_not_name(tmp_path):
+    a, b, c = tmp_path / "a.txt", tmp_path / "b.md", tmp_path / "c.txt"
+    a.write_text("cùng nội dung", encoding="utf-8")
+    b.write_text("cùng nội dung", encoding="utf-8")
+    c.write_text("nội dung khác", encoding="utf-8")
+    assert hash_file(a) == hash_file(b)
+    assert hash_file(a) != hash_file(c)
