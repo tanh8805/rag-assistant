@@ -32,6 +32,47 @@ curl -X POST localhost:8000/query -H "Content-Type: application/json" -d '{"ques
 
 Swagger UI: http://localhost:8000/docs
 
+## Đánh giá retrieval
+
+Đo Recall@k và MRR của dense, BM25, RRF trên `eval/golden.jsonl` (một văn bản tìm được là đúng nếu chứa nguyên văn một đoạn trong `evidence_spans`). Cần ingest tài liệu trước:
+
+```bash
+python -m eval.run_retrieval
+```
+
+Muốn đổi strategy, retriever, các mức k hoặc chấm trên parent đưa cho LLM (`LEVEL = "context"`), sửa các hằng số ở đầu `eval/run_retrieval.py`.
+
+### Kết quả
+
+Tài liệu: Sổ tay Sinh viên D26 (PDF, 266 trang có text). 28 câu hỏi có đáp án trong `eval/golden.jsonl`. Model embedding `AITeamVN/Vietnamese_Embedding`. Chunking: parent_child (parent 1500, child 600, overlap 80, tổng 541 parent / 1.254 chunk con) và flat (1000, overlap 100, 740 chunk).
+
+Mức `context` là nội dung đưa cho LLM (parent với parent_child, chính chunk với flat), nên là mức so sánh công bằng giữa hai strategy:
+
+| Strategy | Retriever | Recall@1 | Recall@3 | Recall@5 | Recall@10 | Recall@20 | MRR |
+|---|---|---|---|---|---|---|---|
+| parent_child | dense | 0.562 | 0.798 | 0.857 | 0.946 | 0.967 | 0.811 |
+| parent_child | bm25 | 0.628 | 0.711 | 0.771 | 0.866 | 0.911 | 0.796 |
+| parent_child | rrf | 0.640 | 0.896 | 0.938 | 0.955 | 0.955 | **0.887** |
+| flat | dense | 0.473 | 0.789 | 0.869 | 0.914 | 0.967 | 0.787 |
+| flat | bm25 | 0.533 | 0.735 | 0.771 | 0.839 | 0.857 | 0.762 |
+| flat | rrf | 0.574 | 0.807 | 0.833 | 0.893 | 0.964 | 0.824 |
+
+Mức `chunk` (chấm trên chunk tìm được, chunk con của parent_child ngắn hơn chunk flat nên không so sánh trực tiếp được):
+
+| Strategy | Retriever | Recall@1 | Recall@3 | Recall@5 | Recall@10 | Recall@20 | MRR |
+|---|---|---|---|---|---|---|---|
+| parent_child | dense | 0.473 | 0.679 | 0.714 | 0.804 | 0.917 | 0.762 |
+| parent_child | bm25 | 0.539 | 0.658 | 0.682 | 0.777 | 0.857 | 0.789 |
+| parent_child | rrf | 0.542 | 0.771 | 0.807 | 0.860 | 0.938 | 0.843 |
+| flat | dense | 0.473 | 0.789 | 0.869 | 0.914 | 0.967 | 0.787 |
+| flat | bm25 | 0.533 | 0.735 | 0.771 | 0.839 | 0.857 | 0.762 |
+| flat | rrf | 0.574 | 0.807 | 0.833 | 0.893 | 0.964 | 0.824 |
+
+Nhận xét:
+- RRF tốt nhất ở hầu hết các mức; với parent_child, MRR 0.887 và Recall@5 0.938 (flat: 0.824 và 0.833).
+- Ở Recall@20 hai strategy gần như bằng nhau; parent_child chủ yếu xếp đúng lên đầu tốt hơn.
+- Chỉ có 28 câu hỏi nên chênh lệch vài điểm phần trăm chưa đủ để kết luận chắc chắn.
+
 ## Schema
 
 Mỗi chunking strategy một database, schema riêng:
