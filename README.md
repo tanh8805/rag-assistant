@@ -16,6 +16,22 @@ mỗi database dùng schema trong `src/db/init.sql`. `init.sh` chỉ chạy khi 
 docker compose down -v && docker compose up -d db
 ```
 
+## API
+
+```bash
+uvicorn src.main:app --reload    # hoặc docker compose up
+```
+
+- `POST /ingest`: upload file (`.pdf .md .txt .html .htm`), lưu vào `data/uploads/`. Trả về `document_id`, hoặc `duplicate` nếu nội dung đã có.
+- `POST /query`: `{"question": "...", "retriever": "rrf", "top_k": 20, "document_ids": [1, 2]}` (`retriever`: `dense | bm25 | rrf`; bỏ `document_ids` để tìm trong tất cả tài liệu). Trả về `answer` và `sources`.
+
+```bash
+curl -F "file=@tai_lieu.pdf" localhost:8000/ingest
+curl -X POST localhost:8000/query -H "Content-Type: application/json" -d '{"question": "..."}'
+```
+
+Swagger UI: http://localhost:8000/docs
+
 ## Schema
 
 Mỗi chunking strategy một database, schema riêng:
