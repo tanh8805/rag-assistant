@@ -34,42 +34,38 @@ Swagger UI: http://localhost:8000/docs
 
 ## Đánh giá retrieval
 
-Đo Recall@k và MRR của dense, BM25, RRF trên `eval/golden.jsonl` (một văn bản tìm được là đúng nếu chứa nguyên văn một đoạn trong `evidence_spans`). Cần ingest tài liệu trước:
+Đo Recall@k, MRR và số token đưa cho LLM của dense, BM25, RRF trên `eval/golden.jsonl`. Cần ingest tài liệu trước:
 
 ```bash
 python -m eval.run_retrieval
 ```
 
-Muốn đổi strategy, retriever, các mức k hoặc chấm trên parent đưa cho LLM (`LEVEL = "context"`), sửa các hằng số ở đầu `eval/run_retrieval.py`.
+Muốn đổi strategy, retriever hoặc các mức k, sửa các hằng số ở đầu `eval/run_retrieval.py`.
+
+### Cách tính
+
+Chỉ đánh giá **context**, tức thứ thực sự đưa cho LLM:
+- **parent_child:** retriever vẫn tìm trên chunk con (top 20). Mỗi chunk con được đổi thành chunk cha của nó, cha trùng bị bỏ và giữ thứ hạng của lần xuất hiện đầu tiên. Danh sách cha sau khi bỏ trùng là danh sách xếp hạng, nên **k tính trên số cha, không phải số chunk con**. Vì nhiều chunk con thuộc cùng một cha, 20 chunk con chỉ cho khoảng 16 cha (nhỏ nhất 12), nên Recall@20 thực chất là recall của toàn bộ danh sách cha đó.
+- **flat:** danh sách xếp hạng là chính các chunk tìm được.
+- **Đúng/sai:** một văn bản (cha hoặc chunk) được coi là đúng nếu chứa nguyên văn một đoạn trong `evidence_spans` của câu hỏi. Recall@k là tỉ lệ đoạn bằng chứng nằm trong top-k, MRR là 1 chia thứ hạng của văn bản đúng đầu tiên.
+- **Token TB (top-5):** số token trung bình của 5 văn bản đầu danh sách (số văn bản API `/query` đưa cho LLM). Đếm bằng tokenizer của model embedding, chỉ có ý nghĩa để so sánh giữa các strategy, không phải số token thật của LLM.
 
 ### Kết quả
 
-Tài liệu: Sổ tay Sinh viên D26 (PDF, 266 trang có text). 28 câu hỏi có đáp án trong `eval/golden.jsonl`. Model embedding `AITeamVN/Vietnamese_Embedding`. Chunking: parent_child (parent 1500, child 600, overlap 80, tổng 541 parent / 1.254 chunk con) và flat (1000, overlap 100, 740 chunk).
+Tài liệu: Sổ tay Sinh viên D26 (PDF, 266 trang có text). 28 câu hỏi có đáp án trong `eval/golden.jsonl`. Model embedding `AITeamVN/Vietnamese_Embedding`. Chunking: parent_child (parent 1500, child 600, overlap 80; 541 parent, 1.254 chunk con) và flat (1000, overlap 100; 740 chunk).
 
-Mức `context` là nội dung đưa cho LLM (parent với parent_child, chính chunk với flat), nên là mức so sánh công bằng giữa hai strategy:
-
-| Strategy | Retriever | Recall@1 | Recall@3 | Recall@5 | Recall@10 | Recall@20 | MRR |
-|---|---|---|---|---|---|---|---|
-| parent_child | dense | 0.562 | 0.798 | 0.857 | 0.946 | 0.967 | 0.811 |
-| parent_child | bm25 | 0.628 | 0.711 | 0.771 | 0.866 | 0.911 | 0.796 |
-| parent_child | rrf | 0.640 | 0.896 | 0.938 | 0.955 | 0.955 | **0.887** |
-| flat | dense | 0.473 | 0.789 | 0.869 | 0.914 | 0.967 | 0.787 |
-| flat | bm25 | 0.533 | 0.735 | 0.771 | 0.839 | 0.857 | 0.762 |
-| flat | rrf | 0.574 | 0.807 | 0.833 | 0.893 | 0.964 | 0.824 |
-
-Mức `chunk` (chấm trên chunk tìm được, chunk con của parent_child ngắn hơn chunk flat nên không so sánh trực tiếp được):
-
-| Strategy | Retriever | Recall@1 | Recall@3 | Recall@5 | Recall@10 | Recall@20 | MRR |
-|---|---|---|---|---|---|---|---|
-| parent_child | dense | 0.473 | 0.679 | 0.714 | 0.804 | 0.917 | 0.762 |
-| parent_child | bm25 | 0.539 | 0.658 | 0.682 | 0.777 | 0.857 | 0.789 |
-| parent_child | rrf | 0.542 | 0.771 | 0.807 | 0.860 | 0.938 | 0.843 |
-| flat | dense | 0.473 | 0.789 | 0.869 | 0.914 | 0.967 | 0.787 |
-| flat | bm25 | 0.533 | 0.735 | 0.771 | 0.839 | 0.857 | 0.762 |
-| flat | rrf | 0.574 | 0.807 | 0.833 | 0.893 | 0.964 | 0.824 |
+| Strategy | Retriever | Recall@1 | Recall@3 | Recall@5 | Recall@10 | Recall@20 | MRR | Token TB (top-5) |
+|---|---|---|---|---|---|---|---|---|
+| parent_child | dense | 0.562 | 0.798 | 0.857 | 0.946 | 0.967 | 0.811 | 1627 |
+| parent_child | bm25 | 0.628 | 0.711 | 0.771 | 0.866 | 0.911 | 0.796 | 1699 |
+| parent_child | rrf | 0.640 | 0.896 | 0.938 | 0.955 | 0.955 | **0.887** | 1638 |
+| flat | dense | 0.473 | 0.789 | 0.869 | 0.914 | 0.967 | 0.787 | 1176 |
+| flat | bm25 | 0.533 | 0.735 | 0.771 | 0.839 | 0.857 | 0.762 | 1200 |
+| flat | rrf | 0.574 | 0.807 | 0.833 | 0.893 | 0.964 | 0.824 | 1181 |
 
 Nhận xét:
 - RRF tốt nhất ở hầu hết các mức; với parent_child, MRR 0.887 và Recall@5 0.938 (flat: 0.824 và 0.833).
+- parent_child tốn nhiều token hơn flat khoảng 40% (khoảng 1.640 so với 1.180 token cho top-5), nên phần chênh lệch về chất lượng cần cân nhắc cùng chi phí này.
 - Ở Recall@20 hai strategy gần như bằng nhau; parent_child chủ yếu xếp đúng lên đầu tốt hơn.
 - Chỉ có 28 câu hỏi nên chênh lệch vài điểm phần trăm chưa đủ để kết luận chắc chắn.
 
