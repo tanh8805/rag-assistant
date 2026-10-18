@@ -6,11 +6,11 @@ Hệ thống hỏi đáp dựa trên tài liệu (Retrieval-Augmented Generation
 
 ```bash
 cp .env.example .env        # rồi chỉnh giá trị trong .env
-docker compose up -d db     # khởi tạo Postgres + pgvector, tự chạy src/db/init.sh
+docker compose up -d db     # khởi tạo Postgres + pgvector, tự tạo 2 database
 ```
 
 Mỗi chunking strategy có database riêng (`rag_parent_child`, `rag_flat`) để so sánh mà không ghi đè nhau;
-mỗi database dùng schema trong `src/db/init.sql`. `init.sh` chỉ chạy khi volume `pgdata` còn trống. Để chạy lại từ đầu:
+mỗi database có schema riêng (`src/db/init.sql`, `src/db/init_1.sql`, mỗi file tự `CREATE DATABASE`). Hai file này chỉ chạy khi volume `pgdata` còn trống. Để chạy lại từ đầu (xóa hết dữ liệu):
 
 ```bash
 docker compose down -v && docker compose up -d db
@@ -38,7 +38,7 @@ Mỗi chunking strategy một database, schema riêng:
 
 **`rag_parent_child`** (`src/db/init.sql`)
 - `documents`: mỗi file đã ingest, có `content_hash` (SHA-256 nội dung file) để bỏ qua file đã có
-- `parents`: chunk cha (~3000 ký tự), phần được trả về cho LLM
+- `parents`: chunk cha (~1500 ký tự), phần được trả về cho LLM
 - `chunks`: chunk con (~600 ký tự) + `embedding vector(1024)` (HNSW cosine), có `parent_id` trỏ về chunk cha
 
 **`rag_flat`** (`src/db/init_1.sql`)

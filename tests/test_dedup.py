@@ -53,8 +53,8 @@ def test_ingest_skips_same_content(db, strategy, tmp_path, monkeypatch):
     copy.write_text(CONTENT, encoding="utf-8")
 
     assert ingest_file(db, a, strategy) is not None
-    assert ingest_file(db, a, strategy) is None  # cùng file
-    assert ingest_file(db, copy, strategy) is None  # tên khác, nội dung giống
+    assert ingest_file(db, a, strategy) is None  
+    assert ingest_file(db, copy, strategy) is None 
     assert count_docs(db, tmp_path) == 1
 
 
@@ -66,4 +66,4 @@ def test_ingest_again_when_content_changes(db, strategy, tmp_path, monkeypatch):
 
     a.write_text(CONTENT + " Thêm một câu mới.", encoding="utf-8")
     assert ingest_file(db, a, strategy) is not None
-    assert count_docs(db, tmp_path) == 1  # thay bản cũ, không nhân đôi
+    assert count_docs(db, tmp_path) == 1  

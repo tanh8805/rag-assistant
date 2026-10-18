@@ -1,3 +1,7 @@
+-- Database riêng cho chunking strategy flat. Postgres tự chạy file này khi khởi tạo volume lần đầu.
+CREATE DATABASE rag_flat;
+\c rag_flat
+
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS documents (

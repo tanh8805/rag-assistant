@@ -11,7 +11,7 @@ embedding:
 chunking:
   strategy: parent_child   # parent_child | flat
   # parent_child
-  parent_size: 3000
+  parent_size: 1500
   child_size: 600
   child_overlap: 80
   # flat: chunk thường

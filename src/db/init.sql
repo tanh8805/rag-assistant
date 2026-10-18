@@ -1,3 +1,7 @@
+-- Database riêng cho chunking strategy parent_child. Postgres tự chạy file này khi khởi tạo volume lần đầu.
+CREATE DATABASE rag_parent_child;
+\c rag_parent_child
+
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS documents (

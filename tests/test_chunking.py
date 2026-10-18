@@ -79,7 +79,7 @@ def test_flat_chunks_overlap():
 def test_factory_uses_settings():
     chunker = get_chunker()
     assert isinstance(chunker, ParentChildChunker)
-    assert (chunker.parent_size, chunker.child_size, chunker.child_overlap) == (3000, 600, 80)
+    assert (chunker.parent_size, chunker.child_size, chunker.child_overlap) == (1500, 600, 80)
 
     flat = get_chunker("flat")
     assert isinstance(flat, FlatChunker)
