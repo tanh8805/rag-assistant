@@ -1,4 +1,4 @@
-from .chunk_store import save_document
-from .db import SessionLocal, engine, get_db
+from .chunk_store import save_document, save_flat_document
+from .db import SessionLocal, create_session, engine, get_db
 
-__all__ = ["SessionLocal", "engine", "get_db", "save_document"]
+__all__ = ["SessionLocal", "create_session", "engine", "get_db", "save_document", "save_flat_document"]

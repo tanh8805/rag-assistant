@@ -1,5 +1,7 @@
-"""Cần database đang chạy (docker compose up db). Không kết nối được thì test tự bỏ qua.
-Dùng embedding giả (không tải model) và chỉ tìm trong các tài liệu test tạo ra."""
+"""Chạy trên cả 2 schema (parent_child và flat), mỗi schema một database riêng.
+Cần database đang chạy (docker compose up db), không kết nối được thì test tự bỏ qua.
+Dùng embedding giả (không tải model) và chỉ tìm trong các tài liệu test tạo ra.
+Có thể đổi database bằng biến TEST_DATABASE_URL_PARENT_CHILD / TEST_DATABASE_URL_FLAT."""
 
 import hashlib
 import math
@@ -12,9 +14,9 @@ from sqlalchemy.orm import Session
 
 import src.embeddings.embedder as embedder
 import src.retrieval.dense_retriever as dense_module
-from src.chunking import RecursiveChunker
+from src.chunking import FlatChunker, ParentChildChunker
 from src.config import settings
-from src.db import save_document
+from src.db import save_document, save_flat_document
 from src.ingestion import Document
 from src.retrieval import BM25Retriever, DenseRetriever, RRFRetriever, get_parents
 
@@ -40,14 +42,20 @@ def fake_embed(texts: list[str]) -> list[list[float]]:
     return vectors
 
 
+@pytest.fixture(scope="module", params=["parent_child", "flat"])
+def strategy(request):
+    return request.param
+
+
 @pytest.fixture(scope="module")
-def db():
-    engine = create_engine(os.getenv("TEST_DATABASE_URL", settings.database_url))
+def db(strategy):
+    url = os.getenv(f"TEST_DATABASE_URL_{strategy.upper()}", settings.database_url_for(strategy))
+    engine = create_engine(url)
     session = Session(engine)
     try:
         session.execute(text("SELECT 1 FROM chunks LIMIT 1"))
     except Exception:
-        pytest.skip("Không kết nối được database")
+        pytest.skip(f"Không kết nối được database của strategy {strategy}")
     yield session
     session.rollback()
     session.execute(text("DELETE FROM documents WHERE source LIKE :p"), {"p": PREFIX + "%"})
@@ -57,18 +65,21 @@ def db():
 
 
 @pytest.fixture(scope="module")
-def doc_ids(db):
+def doc_ids(db, strategy):
+    """Lưu 3 tài liệu test, trả về {tên: document_id}."""
+    if strategy == "flat":
+        chunker, save = FlatChunker(chunk_size=100, chunk_overlap=0), save_flat_document
+    else:
+        chunker, save = ParentChildChunker(parent_size=500, child_size=100, child_overlap=0), save_document
+
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(embedder, "embed_texts", fake_embed)
-        mp.setattr(dense_module, "embed_texts", fake_embed)
-
-        chunker = RecursiveChunker(parent_size=500, parent_overlap=0, child_size=100, child_overlap=0)
         ids = {}
         for name, content in DOCS.items():
             source = f"{PREFIX}{name}.txt"
             parents = chunker.split(Document(content, source, {"title": name}))
             embedder.embed_parents(parents)
-            ids[name] = save_document(db, source, name, parents)
+            ids[name] = save(db, source, name, parents)
         yield ids
 
 
@@ -89,9 +100,9 @@ def use_fake_embedding(monkeypatch):
     "query, expected",
     [("mèo bắt chuột", "meo"), ("lập trình Python", "python"), ("phở Hà Nội", "pho")],
 )
-def test_top_result_is_in_right_document(db, retrievers, name, query, expected):
+def test_top_result_is_in_right_document(db, strategy, retrievers, name, query, expected):
     hits = retrievers[name].retrieve(query, top_k=3)
-    assert get_parents(db, hits)[0].source == f"{PREFIX}{expected}.txt"
+    assert get_parents(db, hits, strategy)[0].source == f"{PREFIX}{expected}.txt"
 
 
 @pytest.mark.parametrize("name", ["dense", "bm25", "rrf"])
@@ -112,9 +123,9 @@ def test_rrf_has_no_duplicate_chunks(retrievers):
 
 
 @pytest.mark.parametrize("make", [DenseRetriever, BM25Retriever])
-def test_document_filter(db, doc_ids, make):
+def test_document_filter(db, strategy, doc_ids, make):
     retriever = make(db, [doc_ids["meo"]])
-    parents = get_parents(db, retriever.retrieve("lập trình Python là gì", top_k=10))
+    parents = get_parents(db, retriever.retrieve("lập trình Python là gì", top_k=10), strategy)
     assert parents
     assert {p.source for p in parents} == {f"{PREFIX}meo.txt"}
 
@@ -124,8 +135,11 @@ def test_empty_document_ids_returns_nothing(db, doc_ids, make):
     assert make(db, []).retrieve("mèo") == []
 
 
-def test_get_parents_removes_duplicates(db, retrievers):
+def test_get_parents_removes_duplicates(db, strategy, retrievers):
     hits = retrievers["dense"].retrieve("Python", top_k=10)
-    parents = get_parents(db, hits)
-    assert len(parents) < len(hits)  
+    parents = get_parents(db, hits, strategy)
     assert len({p.parent_id for p in parents}) == len(parents)
+    if strategy == "parent_child":
+        assert len(parents) < len(hits)  # nhiều child cùng thuộc 1 parent
+    else:
+        assert len(parents) == len(hits)  # flat: mỗi chunk là một context riêng

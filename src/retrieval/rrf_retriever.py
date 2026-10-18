@@ -23,4 +23,4 @@ class RRFRetriever(BaseRetriever):
                 chunks[chunk.chunk_id] = chunk
 
         best = sorted(scores, key=lambda cid: scores[cid], reverse=True)[:top_k]
-        return [RetrievedChunk(cid, chunks[cid].parent_id, chunks[cid].content, scores[cid]) for cid in best]
+        return [RetrievedChunk(cid, chunks[cid].content, scores[cid]) for cid in best]

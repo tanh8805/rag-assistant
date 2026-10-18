@@ -16,10 +16,10 @@ def tokenize(s: str) -> list[str]:
 class BM25Retriever(BaseRetriever):
 
     def __init__(self, db: Session, document_ids: list[int] | None = None):
-        query = "SELECT c.id, c.parent_id, c.content FROM chunks c JOIN parents p ON p.id = c.parent_id"
+        query = "SELECT c.id, c.content FROM chunks c"
         params = {}
         if document_ids is not None:
-            query += " WHERE p.document_id = ANY(:doc_ids)"
+            query += " WHERE c.document_id = ANY(:doc_ids)"
             params["doc_ids"] = document_ids
 
         self.rows = db.execute(text(query), params).all()
@@ -34,6 +34,6 @@ class BM25Retriever(BaseRetriever):
         matched = [i for i, tokens in enumerate(self.corpus) if set(query_tokens) & set(tokens)]
         best = sorted(matched, key=lambda i: scores[i], reverse=True)[:top_k]
         return [
-            RetrievedChunk(self.rows[i].id, self.rows[i].parent_id, self.rows[i].content, scores[i])
+            RetrievedChunk(self.rows[i].id, self.rows[i].content, scores[i])
             for i in best
         ]

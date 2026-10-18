@@ -1,7 +1,15 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
 from src.ingestion import Document
+
+SEPARATORS = ["\n\n", "\n", ". ", " ", ""]
+
+
+def make_splitter(size: int, overlap: int) -> RecursiveCharacterTextSplitter:
+    return RecursiveCharacterTextSplitter(chunk_size=size, chunk_overlap=overlap, separators=SEPARATORS)
 
 
 @dataclass
@@ -14,18 +22,12 @@ class ChildChunk:
 @dataclass
 class ParentChunk:
     content: str
-    source: str  
+    source: str
     children: list[ChildChunk]
     metadata: dict = field(default_factory=dict)
 
 
 class BaseChunker(ABC):
-    def __init__(self, parent_size: int, parent_overlap: int, child_size: int, child_overlap: int):
-        self.parent_size = parent_size
-        self.parent_overlap = parent_overlap
-        self.child_size = child_size
-        self.child_overlap = child_overlap
-
     @abstractmethod
     def split(self, doc: Document) -> list[ParentChunk]:
         pass

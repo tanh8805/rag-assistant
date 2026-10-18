@@ -2,18 +2,21 @@ database:
   host: localhost
   port: 5432
   user: rag
-  name: rag
+  name: rag         # tên gốc, database thật là rag_<chunking.strategy> (rag_parent_child, rag_flat)
 
 embedding:
   model: AITeamVN/Vietnamese_Embedding
   dim: 1024         
 
 chunking:
-  strategy: recursive
+  strategy: parent_child   # parent_child | flat
+  # parent_child
   parent_size: 3000
-  parent_overlap: 200
   child_size: 600
   child_overlap: 80
+  # flat: chunk thường
+  chunk_size: 1000
+  chunk_overlap: 100
 
 retrieval:
   top_k: 20

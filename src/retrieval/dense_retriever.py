@@ -17,15 +17,15 @@ class DenseRetriever(BaseRetriever):
         params = {"v": str(embed_texts([query])[0]), "k": top_k}
         where = ""
         if self.document_ids is not None:
-            where = "WHERE p.document_id = ANY(:doc_ids)"
+            where = "WHERE c.document_id = ANY(:doc_ids)"
             params["doc_ids"] = self.document_ids
 
         rows = self.db.execute(
             text(
-                "SELECT c.id, c.parent_id, c.content, 1 - (c.embedding <=> CAST(:v AS vector)) AS score "
-                f"FROM chunks c JOIN parents p ON p.id = c.parent_id {where} "
+                "SELECT c.id, c.content, 1 - (c.embedding <=> CAST(:v AS vector)) AS score "
+                f"FROM chunks c {where} "
                 "ORDER BY c.embedding <=> CAST(:v AS vector) LIMIT :k"
             ),
             params,
         ).all()
-        return [RetrievedChunk(r.id, r.parent_id, r.content, r.score) for r in rows]
+        return [RetrievedChunk(r.id, r.content, r.score) for r in rows]

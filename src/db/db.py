@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from src.config import settings
 
@@ -13,3 +13,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def create_session(strategy: str) -> Session:
+    return Session(create_engine(settings.database_url_for(strategy)))

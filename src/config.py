@@ -32,9 +32,10 @@ class EmbeddingConfig:
 class ChunkingConfig:
     strategy: str
     parent_size: int
-    parent_overlap: int
     child_size: int
     child_overlap: int
+    chunk_size: int
+    chunk_overlap: int
 
 
 @dataclass
@@ -69,11 +70,15 @@ class Settings:
     gemini_api_key: str
     openai_api_key: str
 
-    @property
-    def database_url(self) -> str:
+    def database_url_for(self, strategy: str) -> str:
+        """Mỗi chunking strategy có database riêng: <database.name>_<strategy>."""
         db = self.database
         host = os.getenv("DB_HOST", db.host)  # trong Docker, host là "db"
-        return f"postgresql+psycopg://{db.user}:{self.postgres_password}@{host}:{db.port}/{db.name}"
+        return f"postgresql+psycopg://{db.user}:{self.postgres_password}@{host}:{db.port}/{db.name}_{strategy}"
+
+    @property
+    def database_url(self) -> str:
+        return self.database_url_for(self.chunking.strategy)
 
 
 settings = Settings(
