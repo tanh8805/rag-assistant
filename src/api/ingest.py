@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
@@ -16,7 +17,7 @@ router = APIRouter()
 
 class IngestResponse(BaseModel):
     filename: str
-    status: str  # "ingested" | "duplicate"
+    status: Literal["ingested", "duplicate"]
     document_id: int | None
 
 

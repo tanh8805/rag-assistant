@@ -3,7 +3,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from src.chunking import get_chunker
-from src.config import settings
+from src.config import ChunkingStrategy, settings
 from src.db import document_exists, save_document, save_flat_document
 from src.embeddings import embed_parents
 
@@ -11,7 +11,7 @@ from .factory import load_file
 from .hashing import hash_file
 
 
-def ingest_file(db: Session, path: str | Path, strategy: str | None = None) -> int | None:
+def ingest_file(db: Session, path: str | Path, strategy: ChunkingStrategy | None = None) -> int | None:
     strategy = strategy or settings.chunking.strategy
     content_hash = hash_file(path)
     if document_exists(db, content_hash):

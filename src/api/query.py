@@ -1,25 +1,28 @@
 from functools import lru_cache
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.config import settings
 from src.db import get_db
 from src.generation import SYSTEM_PROMPT, BaseLLM, build_prompt, get_llm
-from src.retrieval import get_parents, get_retriever
+from src.retrieval import RetrieverName, get_parents, get_retriever
 
 router = APIRouter()
 
 
 @lru_cache
 def default_llm() -> BaseLLM:
-    return get_llm()
+    try:
+        return get_llm()
+    except ValueError as e:  # thiếu API key
+        raise HTTPException(status_code=503, detail=str(e))
 
 
 class QueryRequest(BaseModel):
     question: str = Field(min_length=1)
-    retriever: str = Field("rrf", pattern="^(dense|bm25|rrf)$")
+    retriever: RetrieverName = "rrf"
     top_k: int = Field(settings.retrieval.top_k, ge=1, le=100)
     document_ids: list[int] | None = None 
 

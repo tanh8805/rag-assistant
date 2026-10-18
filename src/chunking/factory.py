@@ -1,11 +1,11 @@
-from src.config import settings
+from src.config import ChunkingStrategy, settings
 
 from .base import BaseChunker
 from .flat_chunker import FlatChunker
 from .parent_child_chunker import ParentChildChunker
 
 
-def get_chunker(strategy: str | None = None) -> BaseChunker:
+def get_chunker(strategy: ChunkingStrategy | None = None) -> BaseChunker:
     c = settings.chunking
     strategy = strategy or c.strategy
     if strategy == "parent_child":

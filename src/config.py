@@ -3,9 +3,13 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from dotenv import load_dotenv
+
+ChunkingStrategy = Literal["parent_child", "flat"]
+LLMProvider = Literal["gemini", "openai"]
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -30,7 +34,7 @@ class EmbeddingConfig:
 
 @dataclass
 class ChunkingConfig:
-    strategy: str
+    strategy: ChunkingStrategy
     parent_size: int
     child_size: int
     child_overlap: int
@@ -51,7 +55,7 @@ class RerankConfig:
 
 @dataclass
 class LLMConfig:
-    provider: str
+    provider: LLMProvider
     gemini_model: str
     openai_model: str
 
@@ -70,7 +74,7 @@ class Settings:
     gemini_api_key: str
     openai_api_key: str
 
-    def database_url_for(self, strategy: str) -> str:
+    def database_url_for(self, strategy: ChunkingStrategy) -> str:
         """Mỗi chunking strategy có database riêng: <database.name>_<strategy>."""
         db = self.database
         host = os.getenv("DB_HOST", db.host)  # trong Docker, host là "db"

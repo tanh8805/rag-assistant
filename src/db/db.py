@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from src.config import settings
+from src.config import ChunkingStrategy, settings
 
 engine = create_engine(settings.database_url)
 SessionLocal = sessionmaker(bind=engine, autoflush=False)
@@ -15,5 +15,5 @@ def get_db():
         db.close()
 
 
-def create_session(strategy: str) -> Session:
+def create_session(strategy: ChunkingStrategy) -> Session:
     return Session(create_engine(settings.database_url_for(strategy)))

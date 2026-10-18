@@ -107,3 +107,12 @@ def test_query_validates_request(env):
     client, _, _ = env
     assert client.post("/query", json={"question": ""}).status_code == 422
     assert client.post("/query", json={"question": "x", "retriever": "abc"}).status_code == 422
+
+
+def test_query_without_api_key_returns_503(monkeypatch):
+    monkeypatch.setattr(settings, "gemini_api_key", "")
+    monkeypatch.setattr(settings, "openai_api_key", "")
+    query_api.default_llm.cache_clear()
+    r = TestClient(app).post("/query", json={"question": "xin chào"})
+    assert r.status_code == 503
+    assert "API_KEY" in r.json()["detail"]

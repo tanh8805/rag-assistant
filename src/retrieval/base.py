@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from src.config import settings
+from src.config import ChunkingStrategy, settings
 
 
 @dataclass
@@ -28,7 +28,7 @@ class BaseRetriever(ABC):
 
 
 def get_parents(
-    db: Session, chunks: list[RetrievedChunk], strategy: str = settings.chunking.strategy
+    db: Session, chunks: list[RetrievedChunk], strategy: ChunkingStrategy = settings.chunking.strategy
 ) -> list[RetrievedParent]:
     """Lấy nội dung đưa cho LLM từ các chunk tìm được (bỏ trùng, giữ thứ tự xếp hạng).
 

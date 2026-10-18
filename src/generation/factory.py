@@ -1,9 +1,9 @@
-from src.config import settings
+from src.config import LLMProvider, settings
 
 from .base import BaseLLM
 
 
-def get_llm(provider: str | None = None) -> BaseLLM:
+def get_llm(provider: LLMProvider | None = None) -> BaseLLM:
     provider = provider or settings.llm.provider
     if provider == "gemini":
         from .gemini_llm import GeminiLLM
