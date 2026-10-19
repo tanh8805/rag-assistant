@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGURL: postgresql://postgres:postgres@localhost:5432/postgres
+      TEST_DATABASE_URL_PARENT_CHILD: postgresql+psycopg://postgres:postgres@localhost:5432/rag_parent_child
+      TEST_DATABASE_URL_FLAT: postgresql+psycopg://postgres:postgres@localhost:5432/rag_flat
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Cài thư viện
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu  # bản CPU cho nhẹ, test không cần GPU
+          pip install -r requirements.txt
+
+      - name: Tạo database
+        run: |
+          sudo apt-get install -y --no-install-recommends postgresql-client
+          psql "$PGURL" -v ON_ERROR_STOP=1 -f src/db/init.sql
+          psql "$PGURL" -v ON_ERROR_STOP=1 -f src/db/init_1.sql
+
+      - name: Chạy test
+        run: pytest -v

@@ -2,6 +2,7 @@
 
 Hệ thống hỏi đáp tiếng Việt dựa trên tài liệu của riêng bạn, xây theo mô hình **Retrieval-Augmented Generation**. Tài liệu (PDF, HTML, Markdown, văn bản thuần) được nạp, chia nhỏ, vector hóa và lưu vào PostgreSQL + pgvector. Khi có câu hỏi, hệ thống tìm các đoạn liên quan rồi nhờ LLM trả lời kèm nguồn trích dẫn.
 
+[![CI](https://github.com/tanh8805/rag-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/tanh8805/rag-assistant/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-336791)
