@@ -222,5 +222,3 @@ Chỉ đánh giá **context**, tức thứ thực sự đưa cho LLM:
 ```bash
 pytest
 ```
-
-Các test cần database (retrieval, nạp trùng, API) tự bỏ qua nếu không kết nối được. Có thể trỏ sang database khác bằng biến `TEST_DATABASE_URL_PARENT_CHILD` và `TEST_DATABASE_URL_FLAT`. Các test dùng embedding và LLM giả nên không cần tải model hay API key.
