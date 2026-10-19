@@ -18,7 +18,7 @@ from src.chunking import FlatChunker, ParentChildChunker
 from src.config import settings
 from src.db import save_document, save_flat_document
 from src.ingestion import Document
-from src.retrieval import BM25Retriever, DenseRetriever, RRFRetriever, get_parents
+from src.retrieval import BM25Retriever, DenseRetriever, FTSRetriever, RRFRetriever, get_parents
 
 PREFIX = "test_retrieval/"
 DOCS = {
@@ -87,7 +87,7 @@ def doc_ids(db, strategy):
 def retrievers(db, doc_ids):
     ids = list(doc_ids.values())
     dense, bm25 = DenseRetriever(db, ids), BM25Retriever(db, ids)
-    return {"dense": dense, "bm25": bm25, "rrf": RRFRetriever(dense, bm25)}
+    return {"dense": dense, "bm25": bm25, "fts": FTSRetriever(db, ids), "rrf": RRFRetriever(dense, bm25)}
 
 
 @pytest.fixture(autouse=True)
@@ -95,7 +95,7 @@ def use_fake_embedding(monkeypatch):
     monkeypatch.setattr(dense_module, "embed_texts", fake_embed)
 
 
-@pytest.mark.parametrize("name", ["dense", "bm25", "rrf"])
+@pytest.mark.parametrize("name", ["dense", "bm25", "fts", "rrf"])
 @pytest.mark.parametrize(
     "query, expected",
     [("mèo bắt chuột", "meo"), ("lập trình Python", "python"), ("phở Hà Nội", "pho")],
@@ -105,7 +105,7 @@ def test_top_result_is_in_right_document(db, strategy, retrievers, name, query, 
     assert get_parents(db, hits, strategy)[0].source == f"{PREFIX}{expected}.txt"
 
 
-@pytest.mark.parametrize("name", ["dense", "bm25", "rrf"])
+@pytest.mark.parametrize("name", ["dense", "bm25", "fts", "rrf"])
 def test_top_k_and_sorted_by_score(retrievers, name):
     hits = retrievers[name].retrieve("là", top_k=3)
     assert 0 < len(hits) <= 3
@@ -113,8 +113,10 @@ def test_top_k_and_sorted_by_score(retrievers, name):
     assert scores == sorted(scores, reverse=True)
 
 
-def test_bm25_returns_nothing_without_matching_word(retrievers):
-    assert retrievers["bm25"].retrieve("zzzz qqqq") == []
+@pytest.mark.parametrize("name", ["bm25", "fts"])
+def test_keyword_retrievers_return_nothing_without_matching_word(retrievers, name):
+    assert retrievers[name].retrieve("zzzz qqqq") == []
+    assert retrievers[name].retrieve("!!!") == []
 
 
 def test_rrf_has_no_duplicate_chunks(retrievers):
@@ -122,7 +124,7 @@ def test_rrf_has_no_duplicate_chunks(retrievers):
     assert len(ids) == len(set(ids))
 
 
-@pytest.mark.parametrize("make", [DenseRetriever, BM25Retriever])
+@pytest.mark.parametrize("make", [DenseRetriever, BM25Retriever, FTSRetriever])
 def test_document_filter(db, strategy, doc_ids, make):
     retriever = make(db, [doc_ids["meo"]])
     parents = get_parents(db, retriever.retrieve("lập trình Python là gì", top_k=10), strategy)
@@ -130,7 +132,7 @@ def test_document_filter(db, strategy, doc_ids, make):
     assert {p.source for p in parents} == {f"{PREFIX}meo.txt"}
 
 
-@pytest.mark.parametrize("make", [DenseRetriever, BM25Retriever])
+@pytest.mark.parametrize("make", [DenseRetriever, BM25Retriever, FTSRetriever])
 def test_empty_document_ids_returns_nothing(db, doc_ids, make):
     assert make(db, []).retrieve("mèo") == []
 
@@ -143,3 +145,25 @@ def test_get_parents_removes_duplicates(db, strategy, retrievers):
         assert len(parents) < len(hits)  # nhiều child cùng thuộc 1 parent
     else:
         assert len(parents) == len(hits)  # flat: mỗi chunk là một context riêng
+
+
+def test_bm25_index_is_cached_until_chunks_change(db, strategy, doc_ids):
+    import src.retrieval.bm25_retriever as bm25_module
+
+    first = bm25_module.get_index(db)
+    assert bm25_module.get_index(db) is first  # chunk không đổi thì dùng lại chỉ số trong RAM
+
+    chunker = (
+        FlatChunker(chunk_size=100, chunk_overlap=0)
+        if strategy == "flat"
+        else ParentChildChunker(parent_size=500, child_size=100, child_overlap=0)
+    )
+    save = save_flat_document if strategy == "flat" else save_document
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(embedder, "embed_texts", fake_embed)
+        parents = chunker.split(Document("Cá heo là loài thông minh.", f"{PREFIX}cah.txt", {"title": "ca"}))
+        embedder.embed_parents(parents)
+        new_id = save(db, f"{PREFIX}cah.txt", "ca", parents)
+
+    hits = BM25Retriever(db, [new_id]).retrieve("cá heo")  # ingest xong là tìm thấy ngay
+    assert hits and bm25_module.get_index(db) is not first

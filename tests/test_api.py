@@ -46,6 +46,7 @@ def env(tmp_path, monkeypatch):
     llm = FakeLLM()
     monkeypatch.setattr(embedder, "embed_texts", fake_embed)  # dùng khi ingest
     monkeypatch.setattr(dense_module, "embed_texts", fake_embed)  # dùng khi query
+    monkeypatch.setattr(query_api, "rerank", lambda q, parents: parents[: settings.rerank.top_n])  # bỏ model rerank thật
     monkeypatch.setattr(ingest_api, "UPLOAD_DIR", tmp_path / "uploads")
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[query_api.default_llm] = lambda: llm
@@ -80,7 +81,7 @@ def test_ingest_rejects_unsupported_format(env):
     assert upload(client, "a.exe", tmp_path).status_code == 400
 
 
-@pytest.mark.parametrize("retriever", ["dense", "bm25", "rrf"])
+@pytest.mark.parametrize("retriever", ["dense", "bm25", "fts", "rrf"])
 def test_query_returns_answer_and_sources(env, retriever):
     client, llm, tmp_path = env
     document_id = upload(client, "meo.txt", tmp_path).json()["document_id"]

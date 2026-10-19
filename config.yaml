@@ -2,7 +2,7 @@ database:
   host: localhost
   port: 5432
   user: rag
-  name: rag         # tên gốc, database thật là rag_<chunking.strategy> (rag_parent_child, rag_flat)
+  name: rag    
 
 embedding:
   model: AITeamVN/Vietnamese_Embedding

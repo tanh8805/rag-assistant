@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from src.config import settings
 from src.db import get_db
 from src.generation import SYSTEM_PROMPT, BaseLLM, build_prompt, get_llm
+from src.rerank import rerank
 from src.retrieval import RetrieverName, get_parents, get_retriever
 
 router = APIRouter()
@@ -42,7 +43,7 @@ def query(req: QueryRequest, db: Session = Depends(get_db), llm: BaseLLM = Depen
     
     chunks = get_retriever(req.retriever, db, req.document_ids).retrieve(req.question, req.top_k)
     
-    parents = get_parents(db, chunks)[: settings.rerank.top_n] if chunks else []
+    parents = rerank(req.question, get_parents(db, chunks)) if chunks else []
     if not parents:
         return QueryResponse(answer="Không tìm thấy thông tin liên quan trong tài liệu.", sources=[])
 

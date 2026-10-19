@@ -11,9 +11,9 @@ Hệ thống hỏi đáp tiếng Việt dựa trên tài liệu của riêng b�
 - **Nạp tài liệu** qua API hoặc code: PDF (theo từng trang), HTML, Markdown, TXT.
 - **Chống nạp trùng** bằng mã băm SHA-256 của nội dung file: file đã có (dù đổi tên) sẽ bị bỏ qua, file sửa nội dung sẽ thay bản cũ.
 - **Hai chiến lược chia chunk** để so sánh: `parent_child` (tìm trên chunk nhỏ, trả về chunk cha giàu ngữ cảnh) và `flat` (chunk cố định). Mỗi chiến lược dùng một database riêng.
-- **Ba cách truy xuất**: dense (vector, cosine), BM25 (từ khóa) và RRF (kết hợp hai cách trên), có thể lọc theo tài liệu.
+- **Bốn cách truy xuất**: dense (vector, cosine), BM25 (từ khóa, chỉ số giữ trong RAM), FTS (từ khóa bằng PostgreSQL Full-Text Search với GIN index) và RRF (kết hợp dense với BM25), có thể lọc theo tài liệu.
 - **Hai LLM** chọn bằng cấu hình: Google Gemini hoặc OpenAI.
-- **Bộ đánh giá** kèm theo: 40 câu hỏi có đáp án chuẩn và đoạn bằng chứng, đo Recall@k, MRR và số token đưa cho LLM.
+- **Bộ đánh giá** kèm theo: 40 câu hỏi có đáp án chuẩn và đoạn bằng chứng, đo Recall@k, MRR và số token đưa cho LLM, có và không rerank.
 
 ## Kiến trúc
 
@@ -23,7 +23,7 @@ flowchart LR
     L1 --> C["Chunker<br/>parent_child | flat"]
     C --> E["Embedding<br/>Vietnamese_Embedding"]
     E --> DB[("PostgreSQL<br/>+ pgvector")]
-    Q[Câu hỏi] --> R["Retriever<br/>dense · BM25 · RRF"]
+    Q[Câu hỏi] --> R["Retriever<br/>dense · BM25 · FTS · RRF"]
     DB --> R
     R --> P["Chunk cha / chunk"]
     P --> G["LLM<br/>Gemini · OpenAI"]
@@ -36,7 +36,8 @@ flowchart LR
 | Cơ sở dữ liệu | PostgreSQL 16 + pgvector (HNSW, cosine), SQLAlchemy 2 + psycopg 3 |
 | Embedding | `AITeamVN/Vietnamese_Embedding` (1024 chiều) qua sentence-transformers |
 | Chia chunk | LangChain `RecursiveCharacterTextSplitter` |
-| BM25 | `rank-bm25` (BM25Plus) |
+| BM25 | `rank-bm25` (BM25Plus), chỉ số trong RAM |
+| FTS | PostgreSQL Full-Text Search (`tsvector` + GIN index) |
 | LLM | Gemini (`gemini-2.5-flash`) hoặc OpenAI (`gpt-4o-mini`) |
 
 ## Bắt đầu nhanh
@@ -88,7 +89,7 @@ Upload một file (`.pdf`, `.md`, `.txt`, `.html`, `.htm`). File được lưu t
 | Trường | Kiểu | Mặc định | Mô tả |
 |---|---|---|---|
 | `question` | string | bắt buộc | Câu hỏi |
-| `retriever` | `"dense"` \| `"bm25"` \| `"rrf"` | `"rrf"` | Cách truy xuất |
+| `retriever` | `"dense"` \| `"bm25"` \| `"fts"` \| `"rrf"` | `"rrf"` | Cách truy xuất |
 | `top_k` | int (1–100) | `20` | Số chunk lấy ra ban đầu |
 | `document_ids` | int[] \| null | `null` | Chỉ tìm trong các tài liệu này; `null` là tìm tất cả |
 
@@ -99,7 +100,7 @@ Upload một file (`.pdf`, `.md`, `.txt`, `.html`, `.htm`). File được lưu t
 }
 ```
 
-Các `sources` là những chunk cha xếp hạng cao nhất (tối đa `rerank.top_n`) được đưa cho LLM. Nếu không tìm thấy gì, API trả lời "không tìm thấy" mà không gọi LLM. Thiếu API key trả về `503`.
+Các chunk cha tìm được được cross-encoder (`rerank.model`) chấm điểm lại; `sources` là `rerank.top_n` chunk cha điểm cao nhất, cũng là phần được đưa cho LLM. Nếu không tìm thấy gì, API trả lời "không tìm thấy" mà không gọi LLM. Thiếu API key trả về `503`.
 
 ## Cấu hình
 
@@ -111,7 +112,7 @@ Cài đặt chung nằm trong [`config.yaml`](config.yaml); khóa bí mật nằ
 | | `parent_size`, `child_size`, `child_overlap` | Kích thước chunk cha, chunk con và phần chồng lấn (parent_child) |
 | | `chunk_size`, `chunk_overlap` | Kích thước chunk và phần chồng lấn (flat) |
 | `retrieval` | `top_k` | Số chunk lấy ra mặc định |
-| `rerank` | `top_n` | Số chunk cha đưa cho LLM |
+| `rerank` | `model`, `top_n` | Model cross-encoder chấm lại và số chunk cha đưa cho LLM |
 | `llm` | `provider` | `gemini` hoặc `openai` |
 | | `gemini_model`, `openai_model` | Tên model |
 | `embedding` | `model`, `dim` | Model embedding và số chiều vector |
@@ -121,6 +122,13 @@ Biến môi trường (`.env`): `POSTGRES_PASSWORD`, `GEMINI_API_KEY`, `OPENAI_A
 ## Dữ liệu và chiến lược chunking
 
 Mỗi chiến lược có database riêng (`rag_<strategy>`) để so sánh công bằng mà không ghi đè lẫn nhau. Hai file SQL khởi tạo chỉ chạy khi volume `pgdata` còn trống; để làm lại từ đầu (xóa hết dữ liệu): `docker compose down -v && docker compose up -d db`.
+
+Database tạo từ phiên bản cũ chưa có cột `content_tsv` và GIN index cho retriever `fts`. Thêm vào mà không mất dữ liệu (chạy cho cả `rag_parent_child` và `rag_flat`):
+
+```sql
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS content_tsv tsvector GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED;
+CREATE INDEX IF NOT EXISTS idx_chunks_fts ON chunks USING gin (content_tsv);
+```
 
 | | `rag_parent_child` ([`init.sql`](src/db/init.sql)) | `rag_flat` ([`init_1.sql`](src/db/init_1.sql)) |
 |---|---|---|
@@ -151,23 +159,37 @@ Chỉ đánh giá **context**, tức thứ thực sự đưa cho LLM:
 - **parent_child:** retriever tìm trên chunk con (top 20). Mỗi chunk con được đổi thành chunk cha của nó, cha trùng bị bỏ và giữ thứ hạng của lần xuất hiện đầu tiên. Danh sách cha sau khi bỏ trùng là danh sách xếp hạng, nên **k tính trên số cha, không phải số chunk con**. Vì nhiều chunk con thuộc cùng một cha, 20 chunk con chỉ cho khoảng 16 cha (nhỏ nhất 12), nên Recall@20 thực chất là recall của toàn bộ danh sách cha đó.
 - **flat:** danh sách xếp hạng là chính các chunk tìm được.
 - **Đúng/sai:** một văn bản được coi là đúng nếu chứa nguyên văn một đoạn trong `evidence_spans`. Recall@k là tỉ lệ đoạn bằng chứng nằm trong top-k; MRR là 1 chia thứ hạng của văn bản đúng đầu tiên.
+- **Rerank = có:** cross-encoder (`rerank.model`) chấm lại chính danh sách văn bản ở trên và xếp lại, không thêm bớt văn bản nào.
 - **Token TB (top-5):** số token trung bình của 5 văn bản đầu danh sách (số văn bản mà `/query` đưa cho LLM), đếm bằng tokenizer của model embedding. Chỉ dùng để so sánh tương đối giữa các strategy, không phải số token thật của LLM.
 
 ### Kết quả
 
 28 câu có đáp án; parent_child dùng parent 1500 / child 600 (541 cha, 1.254 chunk con), flat dùng chunk 1000 / overlap 100 (740 chunk).
 
-| Strategy | Retriever | Recall@1 | Recall@3 | Recall@5 | Recall@10 | Recall@20 | MRR | Token TB (top-5) |
-|---|---|---|---|---|---|---|---|---|
-| parent_child | dense | 0.562 | 0.798 | 0.857 | 0.946 | 0.967 | 0.811 | 1627 |
-| parent_child | bm25 | 0.628 | 0.711 | 0.771 | 0.866 | 0.911 | 0.796 | 1699 |
-| parent_child | rrf | 0.640 | 0.896 | 0.938 | 0.955 | 0.955 | **0.887** | 1638 |
-| flat | dense | 0.473 | 0.789 | 0.869 | 0.914 | 0.967 | 0.787 | 1176 |
-| flat | bm25 | 0.533 | 0.735 | 0.771 | 0.839 | 0.857 | 0.762 | 1200 |
-| flat | rrf | 0.574 | 0.807 | 0.833 | 0.893 | 0.964 | 0.824 | 1181 |
+| Strategy | Retriever | Rerank | Recall@1 | Recall@3 | Recall@5 | Recall@10 | Recall@20 | MRR | Token TB (top-5) |
+|---|---|---|---|---|---|---|---|---|---|
+| parent_child | dense | không | 0.562 | 0.798 | 0.857 | 0.946 | 0.967 | 0.811 | 1627 |
+| parent_child | dense | có | 0.568 | 0.857 | 0.932 | 0.955 | 0.967 | 0.836 | 1399 |
+| parent_child | bm25 | không | 0.628 | 0.711 | 0.771 | 0.866 | 0.911 | 0.796 | 1699 |
+| parent_child | bm25 | có | 0.616 | 0.842 | 0.911 | 0.911 | 0.911 | 0.860 | 1519 |
+| parent_child | fts | không | 0.524 | 0.649 | 0.771 | 0.795 | 0.866 | 0.711 | 1752 |
+| parent_child | fts | có | 0.554 | 0.807 | 0.866 | 0.866 | 0.866 | 0.818 | 1591 |
+| parent_child | rrf | không | 0.640 | 0.896 | 0.938 | 0.955 | 0.955 | **0.887** | 1638 |
+| parent_child | rrf | có | 0.568 | 0.905 | 0.932 | 0.955 | 0.955 | 0.845 | 1452 |
+| flat | dense | không | 0.473 | 0.789 | 0.869 | 0.914 | 0.967 | 0.787 | 1176 |
+| flat | dense | có | 0.512 | 0.815 | 0.878 | 0.920 | 0.967 | 0.842 | 1146 |
+| flat | bm25 | không | 0.533 | 0.735 | 0.771 | 0.839 | 0.857 | 0.762 | 1200 |
+| flat | bm25 | có | 0.476 | 0.798 | 0.857 | 0.857 | 0.857 | 0.810 | 1156 |
+| flat | fts | không | 0.440 | 0.664 | 0.729 | 0.795 | 0.830 | 0.665 | 1208 |
+| flat | fts | có | 0.476 | 0.780 | 0.830 | 0.830 | 0.830 | 0.798 | 1193 |
+| flat | rrf | không | 0.574 | 0.807 | 0.833 | 0.893 | 0.964 | 0.824 | 1181 |
+| flat | rrf | có | 0.476 | 0.815 | 0.887 | 0.964 | 0.964 | 0.825 | 1143 |
 
-- RRF tốt nhất ở hầu hết các mức. Với parent_child, MRR đạt 0.887 và Recall@5 đạt 0.938 (flat: 0.824 và 0.833).
-- parent_child đưa cho LLM nhiều token hơn flat khoảng 40% (~1.640 so với ~1.180 cho top-5), nên cần cân nhắc phần chất lượng tăng thêm cùng chi phí này.
+- RRF không rerank cho kết quả tốt nhất: với parent_child, MRR đạt 0.887 và Recall@5 đạt 0.938 (flat: 0.824 và 0.833).
+- FTS của PostgreSQL kém BM25 (parent_child: MRR 0.711 so với 0.796) vì `ts_rank` không tính độ hiếm của từ (IDF), nên các từ phổ biến như "là", "của" có sức nặng bằng từ khóa thật. Đổi sang `ts_rank_cd` hoặc bỏ từ quá phổ biến khỏi câu hỏi đều không cải thiện. Đổi lại FTS không tốn RAM và tự cập nhật khi ingest (chạy ~8 ms/câu trên 1.254 chunk, ngang BM25 trong RAM). RRF vẫn kết hợp dense với BM25.
+- Rerank giúp nhiều nhất khi retriever ban đầu yếu: BM25 của parent_child tăng Recall@5 từ 0.771 lên 0.911 và MRR từ 0.796 lên 0.860; dense cũng tăng. Với RRF, rerank gần như không cải thiện (parent_child còn giảm MRR 0.887 xuống 0.845), và Recall@1 giảm ở hầu hết cấu hình dùng BM25 hoặc RRF.
+- Rerank chỉ xếp lại danh sách đã tìm được nên Recall@20 không đổi. Token top-5 giảm khoảng 10% ở parent_child vì cross-encoder hay đưa các chunk cha ngắn lên đầu.
+- parent_child đưa cho LLM nhiều token hơn flat khoảng 40% (~1.640 so với ~1.180 cho top-5, khi không rerank), nên cần cân nhắc phần chất lượng tăng thêm cùng chi phí này.
 - Ở Recall@20 hai strategy gần như bằng nhau; ưu thế của parent_child nằm ở việc xếp đúng lên đầu.
 - Chỉ có 28 câu hỏi, nên chênh lệch vài điểm phần trăm chưa đủ để kết luận chắc chắn.
 
@@ -188,7 +210,8 @@ Chỉ đánh giá **context**, tức thứ thực sự đưa cho LLM:
 │   ├── chunking/            # parent_child, flat, factory
 │   ├── embeddings/          # sentence-transformers
 │   ├── db/                  # schema SQL, lưu chunk, kết nối
-│   ├── retrieval/           # dense, BM25, RRF, factory
+│   ├── retrieval/           # dense, BM25, FTS, RRF, factory
+│   ├── rerank/              # cross-encoder chấm lại các chunk cha
 │   └── generation/          # LLM Gemini/OpenAI, prompt, factory
 └── tests/
 ```
@@ -200,10 +223,3 @@ pytest
 ```
 
 Các test cần database (retrieval, nạp trùng, API) tự bỏ qua nếu không kết nối được. Có thể trỏ sang database khác bằng biến `TEST_DATABASE_URL_PARENT_CHILD` và `TEST_DATABASE_URL_FLAT`. Các test dùng embedding và LLM giả nên không cần tải model hay API key.
-
-## Hạn chế và hướng phát triển
-
-- Chưa có bước **rerank** (`src/rerank/` còn trống, `rerank.model` trong cấu hình chưa được dùng); hiện chỉ lấy `rerank.top_n` chunk cha xếp hạng cao nhất.
-- Chỉ số BM25 được dựng lại từ database ở mỗi lần truy vấn, sẽ chậm khi dữ liệu lớn.
-- Chưa có đánh giá chất lượng câu trả lời của LLM, mới đo ở bước truy xuất.
-- Bộ đánh giá nhỏ (28 câu có đáp án, một tài liệu).
