@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from langsmith import traceable
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -27,6 +28,7 @@ class BaseRetriever(ABC):
         pass
 
 
+@traceable(run_type="chain", name="get_parents", process_inputs=lambda i: {"chunks": i["chunks"]})
 def get_parents(
     db: Session, chunks: list[RetrievedChunk], strategy: ChunkingStrategy = settings.chunking.strategy
 ) -> list[RetrievedParent]:

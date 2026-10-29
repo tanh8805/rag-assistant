@@ -1,3 +1,5 @@
+from langsmith import traceable
+
 from src.retrieval import RetrievedParent
 
 SYSTEM_PROMPT = (
@@ -7,6 +9,7 @@ SYSTEM_PROMPT = (
 )
 
 
+@traceable(run_type="prompt", name="build_prompt")
 def build_prompt(question: str, parents: list[RetrievedParent]) -> str:
     context = "\n\n".join(f"[{i}] (nguồn: {p.source})\n{p.content}" for i, p in enumerate(parents, 1))
     return f"Tài liệu:\n{context}\n\nCâu hỏi: {question}"

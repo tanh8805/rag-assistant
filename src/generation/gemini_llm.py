@@ -1,5 +1,6 @@
 from google import genai
 from google.genai import types
+from langsmith import traceable
 
 from src.config import settings
 
@@ -14,6 +15,7 @@ class GeminiLLM(BaseLLM):
         self.model = model or settings.llm.gemini_model
         self.client = genai.Client(api_key=api_key)
 
+    @traceable(run_type="llm", name="gemini_generate")
     def generate(self, prompt: str, system: str | None = None) -> str:
         response = self.client.models.generate_content(
             model=self.model,

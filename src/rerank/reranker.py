@@ -1,6 +1,7 @@
 from functools import lru_cache
 
 import torch
+from langsmith import traceable
 from sentence_transformers import CrossEncoder
 
 from src.config import settings
@@ -13,6 +14,7 @@ def get_reranker() -> CrossEncoder:
     return CrossEncoder(settings.rerank.model, max_length=768, model_kwargs={"dtype": dtype})
 
 
+@traceable(run_type="chain", name="rerank")
 def rerank(query: str, parents: list[RetrievedParent], top_n: int = settings.rerank.top_n) -> list[RetrievedParent]:
     """Chấm điểm từng cặp (câu hỏi, văn bản) bằng cross-encoder, trả về top_n văn bản điểm cao nhất."""
     if not parents:

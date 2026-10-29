@@ -1,6 +1,7 @@
 from functools import lru_cache
 
 from fastapi import APIRouter, Depends, HTTPException
+from langsmith import traceable
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -38,14 +39,18 @@ class QueryResponse(BaseModel):
     sources: list[Source]
 
 
-@router.post("/query", response_model=QueryResponse)
-def query(req: QueryRequest, db: Session = Depends(get_db), llm: BaseLLM = Depends(default_llm)):
-    
+@traceable(run_type="chain", name="rag_query", process_inputs=lambda i: {"request": i["req"].model_dump()})
+def answer_question(req: QueryRequest, db: Session, llm: BaseLLM) -> QueryResponse:
     chunks = get_retriever(req.retriever, db, req.document_ids).retrieve(req.question, req.top_k)
-    
+
     parents = rerank(req.question, get_parents(db, chunks)) if chunks else []
     if not parents:
         return QueryResponse(answer="Không tìm thấy thông tin liên quan trong tài liệu.", sources=[])
 
     answer = llm.generate(build_prompt(req.question, parents), system=SYSTEM_PROMPT)
     return QueryResponse(answer=answer, sources=[Source(source=p.source, content=p.content) for p in parents])
+
+
+@router.post("/query", response_model=QueryResponse)
+def query(req: QueryRequest, db: Session = Depends(get_db), llm: BaseLLM = Depends(default_llm)):
+    return answer_question(req, db, llm)

@@ -3,6 +3,7 @@ import threading
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from langsmith import traceable
 from rank_bm25 import BM25Plus
 from sqlalchemy import Row, text
 from sqlalchemy.orm import Session
@@ -52,6 +53,7 @@ class BM25Retriever(BaseRetriever):
         self.index = get_index(db)
         self.document_ids = None if document_ids is None else set(document_ids)
 
+    @traceable(run_type="retriever", name="bm25_retrieve")
     def retrieve(self, query: str, top_k: int = settings.retrieval.top_k) -> list[RetrievedChunk]:
         index = self.index
         if index.bm25 is None:

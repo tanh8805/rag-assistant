@@ -1,3 +1,5 @@
+from langsmith import traceable
+
 from src.config import settings
 
 from .base import BaseRetriever, RetrievedChunk
@@ -13,6 +15,7 @@ class RRFRetriever(BaseRetriever):
         self.dense = dense
         self.bm25 = bm25
 
+    @traceable(run_type="retriever", name="rrf_retrieve")
     def retrieve(self, query: str, top_k: int = settings.retrieval.top_k) -> list[RetrievedChunk]:
         scores: dict[int, float] = {}
         chunks: dict[int, RetrievedChunk] = {}

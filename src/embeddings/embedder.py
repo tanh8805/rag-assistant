@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from langsmith import traceable
 from sentence_transformers import SentenceTransformer
 
 from src.chunking import ParentChunk
@@ -11,6 +12,7 @@ def get_model() -> SentenceTransformer:
     return SentenceTransformer(settings.embedding.model)
 
 
+@traceable(run_type="embedding", name="embed_texts", process_outputs=lambda o: {"num_vectors": len(o)})
 def embed_texts(texts: list[str]) -> list[list[float]]:
     vectors = get_model().encode(texts, normalize_embeddings=True, batch_size=32)
     return vectors.tolist()

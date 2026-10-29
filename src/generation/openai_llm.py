@@ -1,3 +1,4 @@
+from langsmith import traceable
 from openai import OpenAI
 
 from src.config import settings
@@ -13,6 +14,7 @@ class OpenAILLM(BaseLLM):
         self.model = model or settings.llm.openai_model
         self.client = OpenAI(api_key=api_key)
 
+    @traceable(run_type="llm", name="openai_generate")
     def generate(self, prompt: str, system: str | None = None) -> str:
         messages = [{"role": "user", "content": prompt}]
         if system:

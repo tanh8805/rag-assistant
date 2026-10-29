@@ -1,3 +1,4 @@
+from langsmith import traceable
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -14,6 +15,7 @@ class FTSRetriever(BaseRetriever):
         self.db = db
         self.document_ids = document_ids
 
+    @traceable(run_type="retriever", name="fts_retrieve")
     def retrieve(self, query: str, top_k: int = settings.retrieval.top_k) -> list[RetrievedChunk]:
         tokens = tokenize(query)
         if not tokens:

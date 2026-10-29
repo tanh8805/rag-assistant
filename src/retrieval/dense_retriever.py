@@ -1,3 +1,4 @@
+from langsmith import traceable
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -13,6 +14,7 @@ class DenseRetriever(BaseRetriever):
         self.db = db
         self.document_ids = document_ids
 
+    @traceable(run_type="retriever", name="dense_retrieve")
     def retrieve(self, query: str, top_k: int = settings.retrieval.top_k) -> list[RetrievedChunk]:
         params = {"v": str(embed_texts([query])[0]), "k": top_k}
         where = ""
